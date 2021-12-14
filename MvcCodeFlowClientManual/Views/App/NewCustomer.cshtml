@@ -1,0 +1,31 @@
+﻿
+@{
+    ViewBag.Title = "NewCustomer";
+}
+
+<h2>Create a New Customer</h2>
+
+<br />
+
+<fieldset>
+    <legend>Create a new Customer</legend>
+
+    @using (Html.BeginForm("CreateCustomer", "App", new AjaxOptions { UpdateTargetId = "divNewCustomer" })
+    {
+        <div id="divNewCustomer">
+            <ol>
+                <li>
+                    @Html.Label("Display Name")
+                    @Html.TextBox("DisplayName")
+                </li>
+                <li>
+                    @Html.Label("Company Name")
+                    @Html.TextBox("CompanyName")
+                </li>
+            </ol>
+        </div>
+    }
+
+</fieldset>
+
+<input type="button" name="backBtn" value="Go Back" onclick="history.back()" />

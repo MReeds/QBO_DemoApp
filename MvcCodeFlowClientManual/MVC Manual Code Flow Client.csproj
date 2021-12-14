@@ -295,6 +295,8 @@
     <Content Include="Scripts\popper.js.map" />
     <Content Include="Scripts\popper-utils.min.js.map" />
     <Content Include="Scripts\popper-utils.js.map" />
+    <Content Include="Views\App\ApiCustomer.cshtml" />
+    <Content Include="Views\App\NewCustomer.cshtml" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="packages.config">
