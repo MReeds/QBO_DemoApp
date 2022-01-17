@@ -22,31 +22,32 @@
 
 <br />
 
-@using (Html.BeginForm("ApiCallService", "App", FormMethod.Post))
-{
 
-    <div><input type="submit" name="submitButton" value="Get Company Info" /></div>
-    <br />
-}
-
-    <div>
-        @Html.Label("Create a new customer: ")
-        <br />
-        @Html.ActionLink("Go to Form", "NewCustomer");
-        <input type="button" value="Go to Form" />
-    </div>
-    <br />
 
 @using (Html.BeginForm("GetCustomerInfo", "App", FormMethod.Post))
 {
 
     <div>
-        @Html.Label("Search for a customer: ")
+        @Html.Label("Check to Download Customer: ")
+        @Html.CheckBox("checkDownload")
+
         <br />
+
+        @Html.Label("Search for a customer: ")
+
+        <br />
+
         <input type="text" name="customerName" placeholder="Customer name" />
 
         <input type="submit" name="submitButton" value="Get Customer Info" />
     </div>
+    <br />
+}
+
+@using (Html.BeginForm("ApiCallService", "App", FormMethod.Post))
+{
+
+    <div><input type="submit" name="submitButton" value="Get Company Info" /></div>
     <br />
 }
 

@@ -14,6 +14,11 @@ using System.Linq;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Text;
+using Aspose.Cells;
+using Aspose.Cells.Utility;
+using Newtonsoft.Json.Linq;
+using System.IO;
+using System.Windows.Forms;
 
 namespace MvcCodeFlowClientManual.Controllers
 {
@@ -26,9 +31,7 @@ namespace MvcCodeFlowClientManual.Controllers
 
         public static OAuth2Client auth2Client = new OAuth2Client(clientid, clientsecret, redirectUrl, environment);
 
-        /// <summary>
         /// Use the Index page of App controller to get all endpoints from discovery url
-        /// </summary>
         public ActionResult Index()
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
@@ -38,9 +41,7 @@ namespace MvcCodeFlowClientManual.Controllers
             return View();
         }
 
-        /// <summary>
         /// Start Auth flow
-        /// </summary>
         public ActionResult InitiateAuth(string submitButton)
         {
             switch (submitButton)
@@ -55,28 +56,42 @@ namespace MvcCodeFlowClientManual.Controllers
             }
         }
 
-        /// <summary>
+        public ServiceContext CreateServiceContext()
+        {
+            string realmId = Session["realmId"].ToString();
+
+            var principal = User as ClaimsPrincipal;
+            OAuth2RequestValidator oauthValidator = new OAuth2RequestValidator(principal.FindFirst("access_token").Value);
+
+            // Create a ServiceContext with Auth tokens and realmId
+            ServiceContext serviceContext = new ServiceContext(realmId, IntuitServicesType.QBO, oauthValidator);
+            serviceContext.IppConfiguration.MinorVersion.Qbo = "23";
+
+            return serviceContext;
+        }
+        
+
         /// QBO API Request
-        /// </summary>
         public ActionResult ApiCallService()
         {
             if (Session["realmId"] != null)
             {
-                string realmId = Session["realmId"].ToString();
                 try
                 {
-                    var principal = User as ClaimsPrincipal;
-                    OAuth2RequestValidator oauthValidator = new OAuth2RequestValidator(principal.FindFirst("access_token").Value);
-
-                    // Create a ServiceContext with Auth tokens and realmId
-                    ServiceContext serviceContext = new ServiceContext(realmId, IntuitServicesType.QBO, oauthValidator);
-                    serviceContext.IppConfiguration.MinorVersion.Qbo = "23";
+                    var serviceContext = CreateServiceContext();
 
                     // Create a QuickBooks QueryService using ServiceContext
                     QueryService<CompanyInfo> querySvc = new QueryService<CompanyInfo>(serviceContext);
                     CompanyInfo companyInfo = querySvc.ExecuteIdsQuery("SELECT * FROM CompanyInfo").FirstOrDefault();
 
-                    string output = "Company Name: " + companyInfo.CompanyName + " Company Address: " + companyInfo.CompanyAddr.Line1 + ", " + companyInfo.CompanyAddr.City + ", " + companyInfo.CompanyAddr.Country + " " + companyInfo.CompanyAddr.PostalCode;
+                    string output = "Company Name: " 
+                        + companyInfo.CompanyName 
+                        + " Company Address: " 
+                        + companyInfo.CompanyAddr.Line1 
+                        + ", " + companyInfo.CompanyAddr.City 
+                        + ", " + companyInfo.CompanyAddr.Country 
+                        + " " + companyInfo.CompanyAddr.PostalCode;
+
                     return View("ApiCallService", (object) output);
                 }
                 catch (Exception ex)
@@ -88,19 +103,35 @@ namespace MvcCodeFlowClientManual.Controllers
                 return View("ApiCallService", (object)"QBO API call Failed!");
         }
 
-        public ActionResult GetCustomerInfo(string customerName)
+        public string BuildCustomerString(Customer customer)
+        {
+            StringBuilder sbCustomer = new StringBuilder();
+            sbCustomer.Append("Customer Name: " + customer.GivenName + " " + customer.FamilyName);
+            sbCustomer.AppendLine("\n");
+
+            sbCustomer.AppendLine(customer.PrimaryPhone.FreeFormNumber);
+            sbCustomer.AppendLine("\n");
+
+            sbCustomer.Append("Display Name: " + customer.FullyQualifiedName);
+            sbCustomer.AppendLine("\n");
+
+            sbCustomer.Append("Billing Address: " + customer.BillAddr.Line1
+                + customer.BillAddr.City + ","
+                + " " + customer.BillAddr.CountrySubDivisionCode
+                + " " + customer.BillAddr.PostalCode);
+
+            string output = sbCustomer.ToString();
+
+            return output; 
+        }
+
+        public ActionResult GetCustomerInfo(string customerName, bool checkDownload = false)
         {
             if (Session["realmId"] != null)
             {
-                string realmId = Session["realmId"].ToString();
                 try
                 {
-                    var principal = User as ClaimsPrincipal;
-                    OAuth2RequestValidator oauthValidator = new OAuth2RequestValidator(principal.FindFirst("access_token").Value);
-
-                    // Create a ServiceContext with Auth tokens and realmId
-                    ServiceContext serviceContext = new ServiceContext(realmId, IntuitServicesType.QBO, oauthValidator);
-                    serviceContext.IppConfiguration.MinorVersion.Qbo = "23";
+                    var serviceContext = CreateServiceContext();
 
                     // Create a QuickBooks QueryService using ServiceContext
                     var selectStatement = $"Select * FROM Customer c WHERE c.DisplayName LIKE '%{customerName}%'";
@@ -108,23 +139,14 @@ namespace MvcCodeFlowClientManual.Controllers
                     QueryService<Customer> queryCustomer = new QueryService<Customer>(serviceContext);
                     Customer customer = queryCustomer.ExecuteIdsQuery(selectStatement).FirstOrDefault();
 
+                    string output = BuildCustomerString(customer);
 
-                    StringBuilder sbCustomer = new StringBuilder();
-                    sbCustomer.Append("Customer Name: " + customer.GivenName + " " + customer.FamilyName);
-                    sbCustomer.AppendLine("\n");
+                    if(checkDownload == true)
+                    {
+                        var jsonOutput = JsonConvert.SerializeObject(customer);
+                        CreateExcelWorkbook(customer, jsonOutput);
+                    }
 
-                    sbCustomer.AppendLine(customer.PrimaryPhone.FreeFormNumber);
-                    sbCustomer.AppendLine("\n");
-
-                    sbCustomer.Append("Display Name: " + customer.FullyQualifiedName);
-                    sbCustomer.AppendLine("\n");
-
-                    sbCustomer.Append("Billing Address: " + customer.BillAddr.Line1 
-                        + customer.BillAddr.City + ","
-                        + " " + customer.BillAddr.CountrySubDivisionCode 
-                        + " " + customer.BillAddr.PostalCode);
-
-                    string output = sbCustomer.ToString();
                     return View("ApiCustomer", (object) output);
                 }
                 catch (Exception ex)
@@ -136,48 +158,32 @@ namespace MvcCodeFlowClientManual.Controllers
                 return View("ApiCustomer", (object)"QBO API call Failed!");
         }
 
-        [HttpPost]
-        public ActionResult CreateCustomer(FormCollection form)
+        public void CreateExcelWorkbook(Customer customerObject, string customer)
         {
-            if (Session["realmId"] != null)
-            {
-                string realmId = Session["realmId"].ToString();
-                try
-                {
-                    var principal = User as ClaimsPrincipal;
-                    OAuth2RequestValidator oauthValidator = new OAuth2RequestValidator(principal.FindFirst("access_token").Value);
+            // Create a Workbook object
+            Workbook workbook = new Workbook();
+            Worksheet worksheet = workbook.Worksheets[0];
 
-                    ServiceContext serviceContext = new ServiceContext(realmId, IntuitServicesType.QBO, oauthValidator);
-                    serviceContext.IppConfiguration.MinorVersion.Qbo = "23";
+            // Set JsonLayoutOptions
+            JsonLayoutOptions options = new JsonLayoutOptions();
+            options.ArrayAsTable = true;
 
-                    Guid guid = Guid.NewGuid();
-                    Customer customer = new Customer();
+            // Import JSON Data
+            JsonUtility.ImportData(customer, worksheet.Cells, 0, 0, options);
 
-                    customer.DisplayName = form["DisplayName"];
-                    customer.CompanyName = form["CompanyName"];
+            var customerName = customerObject.GivenName + "-" + customerObject.FamilyName;
 
-                    return View("ApiCustomer", (object) customer);
-                }
-                catch (Exception ex)
-                {
-                    return View("ApiCustomer", (object)("QBO API call Failed!" + " Error message: " + ex.Message));
-                }
-            }
-            else
-                return View("ApiCustomer", (object)"QBO API call Failed!");
+            // Save Excel file
+            workbook.Save($@"H:\repos\CSharp\{customerName}-QB-File.xlsx");
         }
 
-        /// <summary>
         /// Use the Index page of App controller to get all endpoints from discovery url
-        /// </summary>
         public ActionResult Error()
         {
             return View("Error");
         }
 
-        /// <summary>
         /// Action that takes redirection from Callback URL
-        /// </summary>
         public ActionResult Tokens()
         {
             return View("Tokens");
